@@ -1,0 +1,46 @@
+[
+    {
+        "policy_id": "POL-001",
+        "patient_id": "PAT-001",
+        "policy_number": "POL-2024-001",
+        "status": "active",
+        "start_date": "2024-01-01",
+        "end_date": "2027-12-31",
+        "coverage_type": "comprehensive",
+        "max_coverage_amount": 100000.00,
+        "provider": "HealthGuard Insurance"
+    },
+    {
+        "policy_id": "POL-002",
+        "patient_id": "PAT-002",
+        "policy_number": "POL-2024-002",
+        "status": "expired",
+        "start_date": "2023-01-01",
+        "end_date": "2024-01-01",
+        "coverage_type": "basic",
+        "max_coverage_amount": 50000.00,
+        "provider": "HealthGuard Insurance"
+    },
+    {
+        "policy_id": "POL-003",
+        "patient_id": "PAT-003",
+        "policy_number": "POL-2024-003",
+        "status": "active",
+        "start_date": "2024-06-01",
+        "end_date": "2027-06-01",
+        "coverage_type": "premium",
+        "max_coverage_amount": 200000.00,
+        "provider": "HealthGuard Insurance"
+    },
+    {
+        "policy_id": "POL-004",
+        "patient_id": "PAT-004",
+        "policy_number": "POL-2024-004",
+        "status": "suspended",
+        "start_date": "2024-03-01",
+        "end_date": "2027-03-01",
+        "coverage_type": "comprehensive",
+        "max_coverage_amount": 150000.00,
+        "provider": "HealthGuard Insurance"
+    }
+]

@@ -1,0 +1,71 @@
+[
+    {
+        "patient_id": "PAT-001",
+        "name": "Juan Garcia",
+        "age": 45,
+        "gender": "Male",
+        "blood_type": "O+",
+        "allergies": ["Penicillin", "Sulfa drugs"],
+        "pre_existences": [
+            {
+                "condition": "Hypertension",
+                "diagnosed_date": "2020-05-15",
+                "severity": "moderate"
+            },
+            {
+                "condition": "Type 2 Diabetes",
+                "diagnosed_date": "2019-08-20",
+                "severity": "controlled"
+            }
+        ]
+    },
+    {
+        "patient_id": "PAT-002",
+        "name": "Maria Lopez",
+        "age": 32,
+        "gender": "Female",
+        "blood_type": "A+",
+        "allergies": [],
+        "pre_existences": [
+            {
+                "condition": "Asthma",
+                "diagnosed_date": "2010-03-10",
+                "severity": "mild"
+            }
+        ]
+    },
+    {
+        "patient_id": "PAT-003",
+        "name": "Pedro Martinez",
+        "age": 67,
+        "gender": "Male",
+        "blood_type": "B-",
+        "allergies": ["Ibuprofen"],
+        "pre_existences": [
+            {
+                "condition": "Coronary Artery Disease",
+                "diagnosed_date": "2018-11-05",
+                "severity": "severe"
+            },
+            {
+                "condition": "Heart Failure",
+                "diagnosed_date": "2021-02-28",
+                "severity": "moderate"
+            },
+            {
+                "condition": "Chronic Kidney Disease",
+                "diagnosed_date": "2022-07-12",
+                "severity": "mild"
+            }
+        ]
+    },
+    {
+        "patient_id": "PAT-004",
+        "name": "Ana Rodriguez",
+        "age": 28,
+        "gender": "Female",
+        "blood_type": "AB+",
+        "allergies": ["Latex"],
+        "pre_existences": []
+    }
+]
