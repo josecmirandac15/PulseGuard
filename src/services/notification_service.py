@@ -8,7 +8,7 @@ class NotificationService:
         self.hospital_webhook = hospital_webhook
         self.insurer_webhook = insurer_webhook
 
-    async def notify_hospital(self, admission: EmergencyAdmission, alert: Optional[Alert] = None):
+    def notify_hospital(self, admission: EmergencyAdmission, alert: Optional[Alert] = None):
         payload = {
             "type": "admission_notification",
             "admission_id": admission.admission_id,
@@ -26,9 +26,9 @@ class NotificationService:
                 "recommendations": alert.recommendations
             }
 
-        return await self._send_webhook(self.hospital_webhook, payload)
+        return self._send_webhook(self.hospital_webhook, payload)
 
-    async def notify_insurer(self, admission: EmergencyAdmission, alert: Optional[Alert] = None):
+    def notify_insurer(self, admission: EmergencyAdmission, alert: Optional[Alert] = None):
         payload = {
             "type": "insurer_notification",
             "admission_id": admission.admission_id,
@@ -47,15 +47,15 @@ class NotificationService:
                 "recommendations": alert.recommendations
             }
 
-        return await self._send_webhook(self.insurer_webhook, payload)
+        return self._send_webhook(self.insurer_webhook, payload)
 
-    async def _send_webhook(self, url: str, payload: dict) -> dict:
+    def _send_webhook(self, url: str, payload: dict) -> dict:
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
+            with httpx.Client() as client:
+                response = client.post(
                     url,
                     json=payload,
-                    timeout=10.0,
+                    timeout=5.0,
                     headers={"Content-Type": "application/json"}
                 )
                 return {

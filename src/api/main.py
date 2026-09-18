@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
@@ -38,6 +38,8 @@ class AdmissionResponse(BaseModel):
     status: str
     alert_level: Optional[str] = None
     message: str
+    hospital_notified: bool = False
+    insurer_notified: bool = False
 
 
 @app.get("/")
@@ -46,26 +48,20 @@ async def root():
 
 
 @app.post("/webhook/admission", response_model=AdmissionResponse)
-async def receive_admission(admission: EmergencyAdmission, background_tasks: BackgroundTasks):
+async def receive_admission(admission: EmergencyAdmission):
     try:
-        alert = await agent.process_admission(admission)
+        alert = agent.process_admission(admission)
 
-        background_tasks.add_task(
-            notification_service.notify_hospital,
-            admission,
-            alert
-        )
-        background_tasks.add_task(
-            notification_service.notify_insurer,
-            admission,
-            alert
-        )
+        hospital_result = notification_service.notify_hospital(admission, alert)
+        insurer_result = notification_service.notify_insurer(admission, alert)
 
         return AdmissionResponse(
             admission_id=admission.admission_id,
             status="processed",
             alert_level=alert.level.value,
-            message=alert.message
+            message=alert.message,
+            hospital_notified=hospital_result.get("success", False),
+            insurer_notified=insurer_result.get("success", False)
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
