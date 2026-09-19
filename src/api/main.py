@@ -1,20 +1,26 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional
+from contextlib import asynccontextmanager
 import os
 from dotenv import load_dotenv
-from ..agent.models import EmergencyAdmission
-from ..agent.agent import EmergencyAlertAgent
-from ..services.notification_service import NotificationService
-from ..services.audit_service import AuditService
+
+from src.models.base import engine, Base
+from src.api.routes import api_router
 
 load_dotenv()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
 app = FastAPI(
     title="PulseGuard API",
-    description="Emergency Admission Alert System",
-    version="1.0.0"
+    description="Emergency Admission Alert System - hackIAthon Panamá 2026",
+    version="2.0.0",
+    lifespan=lifespan
 )
 
 app.add_middleware(
@@ -25,60 +31,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-agent = EmergencyAlertAgent()
-notification_service = NotificationService(
-    hospital_webhook=os.getenv("HOSPITAL_WEBHOOK_URL", "http://localhost:8001/webhook/hospital"),
-    insurer_webhook=os.getenv("INSURER_WEBHOOK_URL", "http://localhost:8002/webhook/insurer")
-)
-audit_service = AuditService()
-
-
-class AdmissionResponse(BaseModel):
-    admission_id: str
-    status: str
-    alert_level: Optional[str] = None
-    message: str
-    hospital_notified: bool = False
-    insurer_notified: bool = False
+app.include_router(api_router)
 
 
 @app.get("/")
 async def root():
-    return {"message": "PulseGuard API - Emergency Alert System"}
-
-
-@app.post("/webhook/admission", response_model=AdmissionResponse)
-async def receive_admission(admission: EmergencyAdmission):
-    try:
-        alert = agent.process_admission(admission)
-
-        hospital_result = notification_service.notify_hospital(admission, alert)
-        insurer_result = notification_service.notify_insurer(admission, alert)
-
-        return AdmissionResponse(
-            admission_id=admission.admission_id,
-            status="processed",
-            alert_level=alert.level.value,
-            message=alert.message,
-            hospital_notified=hospital_result.get("success", False),
-            insurer_notified=insurer_result.get("success", False)
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/audit/{admission_id}")
-async def get_audit_logs(admission_id: str):
-    logs = audit_service.get_logs_by_admission(admission_id)
-    return {"admission_id": admission_id, "logs": logs}
-
-
-@app.get("/audit")
-async def get_all_audit_logs():
-    logs = audit_service.get_all_logs()
-    return {"total_logs": len(logs), "logs": logs}
+    return {
+        "message": "PulseGuard API v2.0",
+        "hackathon": "hackIAthon Panamá 2026",
+        "reto": "Sistema de Alerta Temprana de Ingresos a Emergencias",
+        "docs": "/docs"
+    }
 
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "PulseGuard"}
+    from sqlalchemy import text
+    from src.models.base import SessionLocal
+
+    db_status = "disconnected"
+    try:
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        db.close()
+        db_status = "connected"
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+
+    return {
+        "status": "healthy" if db_status == "connected" else "degraded",
+        "service": "PulseGuard API",
+        "version": "2.0.0",
+        "database": db_status,
+        "environment": os.getenv("ENVIRONMENT", "development")
+    }

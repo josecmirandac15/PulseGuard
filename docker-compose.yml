@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: pulseguard-db
+    environment:
+      POSTGRES_DB: pulseguard
+      POSTGRES_USER: pulseguard
+      POSTGRES_PASSWORD: pulseguard_secret_2026
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./data/seed.sql:/docker-entrypoint-initdb.d/01-seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulseguard -d pulseguard"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pulseguard-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pulseguard-api
+    environment:
+      DATABASE_URL: postgresql://pulseguard:pulseguard_secret_2026@db:5432/pulseguard
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: qwen/qwen3.8-27b:free
+      HOSPITAL_WEBHOOK_URL: http://hospital-receiver:8001/webhook/hospital
+      INSURER_WEBHOOK_URL: http://insurer-receiver:8002/webhook/insurer
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      DEBUG: "true"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+    networks:
+      - pulseguard-network
+
+  hospital-receiver:
+    build:
+      context: .
+      dockerfile: Dockerfile.receiver
+    container_name: pulseguard-hospital
+    environment:
+      RECEIVER_TYPE: hospital
+      RECEIVER_PORT: 8001
+    ports:
+      - "8001:8001"
+    networks:
+      - pulseguard-network
+
+  insurer-receiver:
+    build:
+      context: .
+      dockerfile: Dockerfile.receiver
+    container_name: pulseguard-insurer
+    environment:
+      RECEIVER_TYPE: insurer
+      RECEIVER_PORT: 8002
+    ports:
+      - "8002:8002"
+    networks:
+      - pulseguard-network
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: pulseguard-dashboard
+    environment:
+      API_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    networks:
+      - pulseguard-network
+
+volumes:
+  postgres_data:
+
+networks:
+  pulseguard-network:
+    driver: bridge

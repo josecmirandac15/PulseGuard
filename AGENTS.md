@@ -2,60 +2,108 @@
 
 ## Architecture
 
-Multi-service webhook system for emergency admission alerts. 4 FastAPI servers run independently:
+Multi-service emergency admission alert system. 5 Docker containers orchestrated via `docker-compose.yml`:
 
-| Service | Port | Entry Point | Purpose |
-|---------|------|-------------|---------|
-| API | 8000 | `src/api/main.py` | Webhook endpoint + audit |
-| Hospital Receiver | 8001 | `src/receivers/hospital_receiver.py` | Mock hospital notifications |
-| Insurer Receiver | 8002 | `src/receivers/insurer_receiver.py` | Mock insurer notifications |
-| Dashboard | 8501 | `src/dashboard/app.py` | Streamlit UI |
+| Service | Port | Container | Purpose |
+|---------|------|-----------|---------|
+| PostgreSQL | 5432 | pulseguard-db | Persistent data store |
+| API | 8000 | pulseguard-api | Webhook + agent logic + AI reports |
+| Hospital Receiver | 8001 | pulseguard-hospital | Mock hospital notifications |
+| Insurer Receiver | 8002 | pulseguard-insurer | Mock insurer notifications |
+| Dashboard | 8501 | pulseguard-dashboard | Streamlit UI |
 
 ## Run Commands
 
 ```bash
-# Terminal 1 - API (must run first)
-python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+# Start all services
+docker compose up -d
 
-# Terminal 2 - Hospital mock
-python -m uvicorn src.receivers.hospital_receiver:app --host 0.0.0.0 --port 8001
+# Rebuild after code changes
+docker compose up -d --build
 
-# Terminal 3 - Insurer mock
-python -m uvicorn src.receivers.insurer_receiver:app --host 0.0.0.0 --port 8002
+# Rebuild specific service
+docker compose up -d --build api
 
-# Terminal 4 - Dashboard
-streamlit run src/dashboard/app.py --server.port 8501
+# Force recreate (picks up env var changes)
+$env:OPENROUTER_API_KEY = "your-key"
+docker compose up -d --force-recreate api
+
+# View logs
+docker compose logs api
+docker compose logs hospital-receiver
 ```
+
+**IMPORTANT**: Always use `docker compose` not bare `docker-compose`. On Windows, run from PowerShell at `D:\Proyectos\PulseGuard`.
 
 ## Data Flow
 
 ```
-Dashboard → POST /webhook/admission → API (8000)
-    → agent.process_admission() → policy validation + pre-existence check
-    → POST to Hospital (8001)
-    → POST to Insurer (8002)
-    → Returns AdmissionResponse with notification status
+Dashboard → POST /api/v1/webhook/admission → API (8000)
+    → policy_service.validate_policy() → patient_service.check_pre_existences()
+    → alert_service.create_alert() → ai_service.generate_report()
+    → notification_service.notify_hospital() (8001)
+    → notification_service.notify_insurer() (8002)
+    → Audit log written to PostgreSQL
 ```
 
 ## Key Files
 
-- `src/agent/models.py` - All Pydantic models (EmergencyAdmission, Alert, Policy, Patient)
-- `src/agent/agent.py` - Rule-based agent, no AI dependency
-- `src/services/policy_service.py` - Reads `data/policies.json` and `data/patients.json` on init
-- `src/services/notification_service.py` - Synchronous HTTP POST to receivers
-- `src/services/audit_service.py` - Writes to `data/audit_logs.json`
+```
+src/
+├── api/
+│   ├── main.py                    # FastAPI app, lifespan, CORS, router includes
+│   ├── routes/admissions.py       # POST /webhook/admission, GET /admissions
+│   ├── routes/alerts.py           # GET /alerts, GET /alerts/stats
+│   └── schemas/admission.py       # Pydantic request/response models
+├── agent/engine.py                # Agent orchestrator - coordinates all services
+├── models/                        # SQLAlchemy models (Patient, Policy, Admission, Alert, AuditLog)
+│   └── base.py                    # Engine, SessionLocal, get_db dependency
+├── services/
+│   ├── policy_service.py          # Policy validation (active/expired/cancelled/suspended)
+│   ├── patient_service.py         # Pre-existence matching by medical keywords
+│   ├── alert_service.py           # Alert CRUD, levels: info/warning/critical
+│   ├── notification_service.py    # HTTP POST to hospital + insurer receivers
+│   └── ai_service.py              # OpenRouter API for AI reports, fallback to local
+├── dashboard/app.py               # Streamlit UI (connects via API_URL env var)
+└── receivers/
+    ├── hospital_receiver.py       # Standalone FastAPI mock
+    └── insurer_receiver.py        # Standalone FastAPI mock
+```
+
+## Environment Variables
+
+Set in `.env` or docker-compose.yml:
+
+- `OPENROUTER_API_KEY` - Required for AI reports (free tier works)
+- `OPENROUTER_MODEL` - Currently `qwen/qwen3.8-27b:free`
+- `DATABASE_URL` - PostgreSQL connection string
+- `API_URL` - Dashboard uses this to find API (set to `http://api:8000` in Docker)
+
+## Database
+
+PostgreSQL 16 with schema + seed data in `data/seed.sql`. Tables: `patients`, `policies`, `pre_existences`, `admissions`, `alerts`, `audit_logs`.
+
+Alembic configured but not yet used (schema loaded via seed.sql on first `docker compose up`).
+
+To reset database: `docker compose down -v && docker compose up -d`
 
 ## Testing
 
 ```bash
-# Quick smoke test
-python -c "import httpx; print(httpx.post('http://localhost:8000/webhook/admission', json={'admission_id':'T1','patient_id':'PAT-001','policy_number':'POL-2024-001','timestamp':'2026-09-18T16:00:00','admission_reason':'Chest pain','symptoms':['chest pain'],'hospital_code':'HOSP-001'}).json())"
+# Smoke test - active policy + pre-existences (WARNING)
+$body = @{admission_id="TEST-001";patient_id="PAT-001";policy_number="POL-2024-001";timestamp="2026-09-19T23:00:00";admission_reason="Chest pain";symptoms=@("chest pain");hospital_code="HOSP-001"} | ConvertTo-Json
+Invoke-WebRequest -Uri "http://localhost:8000/api/v1/webhook/admission" -Method POST -Body $body -ContentType "application/json"
+
+# Verify health
+Invoke-WebRequest -Uri "http://localhost:8000/health" -UseBasicParsing
 ```
 
 ## Gotchas
 
-- `policy_service.py` loads JSON data at import time - restart API after data changes
-- `audit_service.py` appends to `data/audit_logs.json` - file grows unbounded
-- Receivers print to stdout only - no persistent storage
-- No OpenAI/AI dependencies - agent is pure rule-based logic
-- Windows: use `python -m uvicorn` not `uvicorn` directly
+- **Docker env vars**: `${VAR:-}` in docker-compose.yml only picks up host env vars. Set them before `docker compose up` or use `--force-recreate`.
+- **Volume mount**: `./src:/app/src` means code changes apply without rebuild, but env var changes need container restart.
+- **Dashboard URL**: Must use `http://api:8000` (Docker service name), NOT `http://localhost:8000` when running inside container.
+- **OpenRouter free tier**: 50 requests/day. Models with `:free` suffix cost nothing.
+- **Receivers**: Standalone FastAPI apps, no `src.` imports. Built from `Dockerfile.receiver`.
+- **Windows**: Always `python -m uvicorn` not bare `uvicorn`. Use PowerShell.
+- **Database resets**: `docker compose down -v` removes the volume. Seed data re-runs on next `up`.
