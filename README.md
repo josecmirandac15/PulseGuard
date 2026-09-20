@@ -39,13 +39,7 @@ departamento de admisiones del hospital y al gestor de casos del seguro — con 
 
 ## Cómo funciona
 
-1. El hospital registra el ingreso; su sistema llama al **webhook** (`POST /api/v1/webhook/admission`).
-2. La API guarda el ingreso en **PostgreSQL** y ejecuta el agente.
-3. El agente valida la **póliza** (estado y fechas) y cruza las **pre-existencias** con el motivo — decisión determinista.
-4. La **IA** redacta el informe clínico (o usa una plantilla local si no hay API key).
-5. **Notificación simultánea** a admisiones del hospital y al gestor de casos del seguro.
-6. El resultado se emite por **WebSocket** y los tres portales se actualizan en vivo.
-7. Todo queda **auditado** para trazabilidad.
+![Cómo funciona PulseGuard](docs/diagrams/flujo.png)
 
 ## Capturas
 
@@ -71,28 +65,7 @@ departamento de admisiones del hospital y al gestor de casos del seguro — con 
 
 ## Arquitectura
 
-```
-Hospital registra al paciente
-        │  (webhook, automático)
-        ▼
-┌──────────────────────────────────────────────┐
-│  PulseGuard (FastAPI)                         │
-│  1. Guarda el ingreso en PostgreSQL           │
-│  2. AGENTE (determinista):                    │
-│       • ¿póliza vigente?  (estado + fechas)   │
-│       • ¿pre-existencias relevantes?          │
-│  3. IA: redacta el informe clínico            │
-│     (si no hay API key, usa plantilla local)  │
-└───────────────┬──────────────────────────────┘
-                │  en el mismo instante
-      ┌─────────┴──────────┐
-      ▼                    ▼
-Admisiones del        Gestor de casos
-hospital              del seguro
-      └─────────┬──────────┘
-                ▼
-     WebSocket → los 3 portales en vivo
-```
+![Arquitectura de PulseGuard](docs/diagrams/arquitectura.png)
 
 ## Niveles de alerta
 
