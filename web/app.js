@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  const { API_BASE, PATIENTS, esc, fmtTime, patientName, levelInfo, checkHealth, connectWs, apiGet, toast, initNotify, notify, autocomplete } = window.PG;
+  const { API_BASE, esc, fmtTime, patientName, levelInfo, checkHealth, connectWs, apiGet, toast, initNotify, notify, autocomplete, loadPatients } = window.PG;
 
   const admissionPatient = {};
 
@@ -17,25 +17,30 @@
 
   const byName = {};
   const byPolicy = {};
-  PATIENTS.forEach((p) => { byName[p.name.toLowerCase()] = p; byPolicy[p.policy] = p; });
 
-  function initInputs() {
+  async function initInputs() {
+    const patients = await loadPatients();
+    patients.forEach((p) => {
+      byName[p.name.toLowerCase()] = p;
+      if (p.policy) byPolicy[p.policy] = p;
+    });
+
     const pIn = $("patientInput");
     const polIn = $("policyInput");
-    const hint = (p) => ($("patientHint").textContent = "ID: " + p.id + " · póliza " + p.policy);
+    const hint = (p) => ($("patientHint").textContent = "ID: " + p.id + " · póliza " + (p.policy || "—"));
 
     autocomplete(
       pIn,
-      PATIENTS.map((p) => ({ value: p.name, label: p.name, meta: p.id + " · " + p.policy })),
+      patients.map((p) => ({ value: p.name, label: p.name, meta: p.id + (p.policy ? " · " + p.policy : "") })),
       (o) => {
         const p = byName[o.value.toLowerCase()];
-        if (p) { polIn.value = p.policy; hint(p); }
+        if (p && p.policy) { polIn.value = p.policy; hint(p); }
       }
     );
 
     autocomplete(
       polIn,
-      PATIENTS.map((p) => ({ value: p.policy, label: p.policy, meta: p.name })),
+      patients.filter((p) => p.policy).map((p) => ({ value: p.policy, label: p.policy, meta: p.name })),
       (o) => {
         const p = byPolicy[o.value];
         if (p) { pIn.value = p.name; hint(p); }
@@ -46,7 +51,7 @@
       const p = byName[pIn.value.trim().toLowerCase()];
       if (p) {
         hint(p);
-        polIn.value = p.policy;
+        if (p.policy) polIn.value = p.policy;
       } else {
         $("patientHint").textContent = pIn.value.trim() ? "Paciente nuevo (no registrado)" : "";
       }
@@ -61,9 +66,12 @@
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     $("timestamp").value = now.toISOString().slice(0, 16);
 
-    pIn.value = PATIENTS[0].name;
-    polIn.value = PATIENTS[0].policy;
-    hint(PATIENTS[0]);
+    const first = patients.find((p) => p.policy) || patients[0];
+    if (first) {
+      pIn.value = first.name;
+      if (first.policy) polIn.value = first.policy;
+      hint(first);
+    }
   }
 
   async function submitAdmission(ev) {

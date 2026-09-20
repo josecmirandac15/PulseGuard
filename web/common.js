@@ -5,15 +5,22 @@ window.PG = (function () {
   const API_BASE = params.get("api") || window.PULSEGUARD_API_BASE || "/api/v1";
 
   const PATIENTS = [
-    { id: "PAT-001", name: "Juan García", policy: "POL-2024-001" },
-    { id: "PAT-002", name: "María López", policy: "POL-2024-002" },
-    { id: "PAT-003", name: "Pedro Martínez", policy: "POL-2024-003" },
-    { id: "PAT-004", name: "Ana Rodríguez", policy: "POL-2024-004" },
-    { id: "PAT-005", name: "Carlos Mendoza", policy: "POL-2024-005" },
-    { id: "PAT-006", name: "Laura Fernández", policy: "POL-2024-006" },
-    { id: "PAT-007", name: "Roberto Díaz", policy: "POL-2024-007" },
-    { id: "PAT-008", name: "Isabel Torres", policy: "POL-2024-008" },
+    { id: "PAT-001", name: "Juan García", policy: "HG-2026-0001" },
+    { id: "PAT-002", name: "María López", policy: "HG-2026-0002" },
+    { id: "PAT-003", name: "Pedro Martínez", policy: "HG-2026-0003" },
+    { id: "PAT-004", name: "Ana Rodríguez", policy: "HG-2026-0004" },
+    { id: "PAT-005", name: "Carlos Mendoza", policy: "HG-2026-0005" },
+    { id: "PAT-006", name: "Laura Fernández", policy: "HG-2026-0006" },
+    { id: "PAT-007", name: "Roberto Díaz", policy: "HG-2026-0007" },
+    { id: "PAT-008", name: "Isabel Torres", policy: "HG-2026-0008" },
+    { id: "PAT-009", name: "Ricardo Aparicio", policy: "HG-2026-0009" },
+    { id: "PAT-010", name: "Yolanda Quintero", policy: "HG-2026-0010" },
+    { id: "PAT-011", name: "Andrés Bethancourt", policy: "HG-2026-0011" },
+    { id: "PAT-012", name: "Carmen Espinosa", policy: "HG-2026-0012" },
+    { id: "PAT-013", name: "Gabriel Iturralde", policy: "HG-2026-0013" },
+    { id: "PAT-014", name: "Sofía Vallarino", policy: "HG-2026-0014" },
   ];
+  let _patients = PATIENTS;
 
   const LEVEL = {
     info: { label: "Sin observaciones", short: "Normal" },
@@ -34,8 +41,22 @@ window.PG = (function () {
       : d.toLocaleString("es-PA", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   };
 
-  const patientName = (id) => (PATIENTS.find((p) => p.id === id) || {}).name || id;
+  const patientName = (id) => (_patients.find((p) => p.id === id) || {}).name || id;
   const levelInfo = (lvl) => LEVEL[(lvl || "info").toLowerCase()] || LEVEL.info;
+
+  async function loadPatients() {
+    try {
+      const d = await apiGet("/patients");
+      if (d && Array.isArray(d.patients) && d.patients.length) {
+        _patients = d.patients.map((p) => ({
+          id: p.patient_id,
+          name: p.name,
+          policy: p.policy_number || "",
+        }));
+      }
+    } catch (e) { /* usa el respaldo */ }
+    return _patients;
+  }
 
   async function checkHealth(elId, txtId) {
     const el = document.getElementById(elId);
@@ -283,5 +304,6 @@ window.PG = (function () {
   return {
     API_BASE, PATIENTS, LEVEL, esc, fmtTime, patientName, levelInfo,
     checkHealth, connectWs, apiGet, toast, initNotify, notify, autocomplete,
+    loadPatients,
   };
 })();

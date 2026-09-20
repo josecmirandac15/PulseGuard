@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  const { esc, fmtTime, patientName, levelInfo, checkHealth, connectWs, apiGet, toast, initNotify, notify } = window.PG;
+  const { esc, fmtTime, patientName, levelInfo, checkHealth, connectWs, apiGet, toast, initNotify, notify, loadPatients } = window.PG;
 
   const admissionPatient = {};
   const admissionReason = {};
@@ -57,6 +57,7 @@
   }
 
   async function loadHistory() {
+    await loadPatients();
     try {
       const adm = await apiGet("/admissions?limit=50");
       (adm.admissions || []).forEach((a) => {
