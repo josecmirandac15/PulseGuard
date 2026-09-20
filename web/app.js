@@ -15,22 +15,55 @@
     });
   }
 
-  function initSelects() {
-    const pSel = $("patientSelect");
-    const polSel = $("policySelect");
-    pSel.innerHTML = PATIENTS.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
-    polSel.innerHTML = PATIENTS.map((p) => `<option value="${p.policy}">${p.policy}</option>`).join("");
-    pSel.addEventListener("change", () => {
-      const found = PATIENTS.find((p) => p.id === pSel.value);
-      if (found) polSel.value = found.policy;
+  const byName = {};
+  const byPolicy = {};
+  PATIENTS.forEach((p) => { byName[p.name.toLowerCase()] = p; byPolicy[p.policy] = p; });
+
+  function initInputs() {
+    const pIn = $("patientInput");
+    const polIn = $("policyInput");
+    $("patientsList").innerHTML = PATIENTS.map((p) => `<option value="${esc(p.name)}"></option>`).join("");
+    $("policiesList").innerHTML = PATIENTS.map((p) => `<option value="${p.policy}"></option>`).join("");
+
+    pIn.addEventListener("input", () => {
+      const p = byName[pIn.value.trim().toLowerCase()];
+      if (p) {
+        $("patientHint").textContent = "ID: " + p.id + " · póliza " + p.policy;
+        polIn.value = p.policy;
+      } else {
+        $("patientHint").textContent = pIn.value.trim() ? "Paciente nuevo (no registrado)" : "";
+      }
     });
+
+    polIn.addEventListener("input", () => {
+      const p = byPolicy[polIn.value.trim()];
+      if (p) {
+        pIn.value = p.name;
+        $("patientHint").textContent = "ID: " + p.id + " · póliza " + p.policy;
+      }
+    });
+
     const now = new Date();
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     $("timestamp").value = now.toISOString().slice(0, 16);
+
+    pIn.value = PATIENTS[0].name;
+    polIn.value = PATIENTS[0].policy;
+    $("patientHint").textContent = "ID: " + PATIENTS[0].id + " · póliza " + PATIENTS[0].policy;
   }
 
   async function submitAdmission(ev) {
     ev.preventDefault();
+
+    const typedName = $("patientInput").value.trim();
+    const typedPolicy = $("policyInput").value.trim();
+    if (!typedName || !typedPolicy) {
+      $("resultBody").innerHTML =
+        `<div class="alert-banner critical"><span class="badge">Falta</span>
+         <strong>Indica el nombre del paciente y la póliza.</strong></div>`;
+      return;
+    }
+
     const btn = $("submitBtn");
     btn.disabled = true;
     btn.textContent = "Evaluando…";
@@ -41,10 +74,11 @@
     if (bp) vitals.blood_pressure = bp;
     if (spo2) vitals.oxygen_saturation = Number(spo2);
 
+    const matched = byName[typedName.toLowerCase()];
     const payload = {
       admission_id: "ADM-" + Date.now(),
-      patient_id: $("patientSelect").value,
-      policy_number: $("policySelect").value,
+      patient_id: matched ? matched.id : typedName,
+      policy_number: typedPolicy,
       timestamp: new Date($("timestamp").value || Date.now()).toISOString(),
       admission_reason: $("reason").value.trim(),
       symptoms: $("symptoms").value.split(",").map((s) => s.trim()).filter(Boolean),
@@ -156,7 +190,7 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     initHero();
-    initSelects();
+    initInputs();
     initNotify("notifyBtn");
     $("admissionForm").addEventListener("submit", submitAdmission);
     $("refreshBtn").addEventListener("click", loadAll);
