@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admisiones del Hospital · PulseGuard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css?v=4" />
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <div class="brand__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12h4l2 6 4-16 2 10h6" />
+        </svg>
+      </div>
+      <div>
+        <h1>PulseGuard</h1>
+        <p>Admisiones del hospital</p>
+      </div>
+    </div>
+    <nav class="nav">
+      <a href="/">Registro</a>
+      <a href="/hospital">Admisiones</a>
+      <a href="/aseguradora">Gestor de casos</a>
+    </nav>
+    <div class="status" id="apiStatus">
+      <span class="dot"></span>
+      <span id="apiStatusText">Conectando…</span>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="hero__text">
+      <h2>Notificaciones de cobertura</h2>
+      <p>Ingresos a emergencia recibidos en tiempo real</p>
+    </div>
+    <div class="hero__date" id="heroDate"></div>
+  </section>
+
+  <main class="container">
+    <section class="kpis kpis--mini">
+      <div class="kpi">
+        <span class="kpi__label">Notificaciones</span>
+        <span class="kpi__value" id="kpiTotal">–</span>
+      </div>
+      <div class="kpi kpi--info">
+        <span class="kpi__label">Sin observaciones</span>
+        <span class="kpi__value" id="kpiInfo">–</span>
+      </div>
+      <div class="kpi kpi--warning">
+        <span class="kpi__label">Requieren revisión</span>
+        <span class="kpi__value" id="kpiWarning">–</span>
+      </div>
+      <div class="kpi kpi--critical">
+        <span class="kpi__label">Atención inmediata</span>
+        <span class="kpi__value" id="kpiCritical">–</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__head">
+        <h3>Bandeja de admisiones</h3>
+        <button class="btn-ghost" id="refreshBtn">Actualizar</button>
+      </div>
+      <div id="feed" class="feed">
+        <p class="empty">Aún no se han recibido notificaciones.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>PulseGuard · hackIAthon Panamá 2026</span>
+    <span>Portal de admisiones del hospital</span>
+  </footer>
+
+  <script src="./common.js?v=4"></script>
+  <script src="./hospital.js?v=4"></script>
+</body>
+</html>

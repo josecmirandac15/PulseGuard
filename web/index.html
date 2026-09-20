@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css?v=3" />
+  <link rel="stylesheet" href="./styles.css?v=4" />
 </head>
 <body>
   <header class="header">
@@ -22,6 +22,11 @@
         <p>Alerta temprana de ingresos a emergencias</p>
       </div>
     </div>
+    <nav class="nav">
+      <a href="/">Registro</a>
+      <a href="/hospital">Admisiones</a>
+      <a href="/aseguradora">Gestor de casos</a>
+    </nav>
     <div class="status" id="apiStatus">
       <span class="dot"></span>
       <span id="apiStatusText">Conectando…</span>
@@ -162,10 +167,10 @@
         <div class="table-wrap">
           <table>
             <thead>
-              <tr><th>Prioridad</th><th>Paciente</th><th>Hospital</th><th>Gestor de casos</th><th>Hora</th></tr>
+              <tr><th>Prioridad</th><th>Paciente</th><th>Mensaje</th><th>Hora</th></tr>
             </thead>
             <tbody id="alertsBody">
-              <tr><td colspan="5" class="empty">Sin registros</td></tr>
+              <tr><td colspan="4" class="empty">Sin registros</td></tr>
             </tbody>
           </table>
         </div>
@@ -178,6 +183,7 @@
     <span>Uso clínico demostrativo</span>
   </footer>
 
-  <script src="./app.js?v=3"></script>
+  <script src="./common.js?v=4"></script>
+  <script src="./app.js?v=4"></script>
 </body>
 </html>
