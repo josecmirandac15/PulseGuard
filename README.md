@@ -37,6 +37,16 @@ departamento de admisiones del hospital y al gestor de casos del seguro — con 
 > **Diseño clave:** la lógica crítica (cobertura y pre-existencias) es **determinista**
 > (PostgreSQL + Python). La IA **solo redacta** el informe; nunca decide cobertura.
 
+## Cómo funciona
+
+1. El hospital registra el ingreso; su sistema llama al **webhook** (`POST /api/v1/webhook/admission`).
+2. La API guarda el ingreso en **PostgreSQL** y ejecuta el agente.
+3. El agente valida la **póliza** (estado y fechas) y cruza las **pre-existencias** con el motivo — decisión determinista.
+4. La **IA** redacta el informe clínico (o usa una plantilla local si no hay API key).
+5. **Notificación simultánea** a admisiones del hospital y al gestor de casos del seguro.
+6. El resultado se emite por **WebSocket** y los tres portales se actualizan en vivo.
+7. Todo queda **auditado** para trazabilidad.
+
 ## Capturas
 
 **1. Registro del ingreso a emergencia** — el personal de admisiones registra al paciente; el sistema valida la cobertura y dispara la notificación automáticamente.
