@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  const { API_BASE, PATIENTS, esc, fmtTime, patientName, levelInfo, checkHealth, connectWs, apiGet, toast, initNotify, notify } = window.PG;
+  const { API_BASE, PATIENTS, esc, fmtTime, patientName, levelInfo, checkHealth, connectWs, apiGet, toast, initNotify, notify, autocomplete } = window.PG;
 
   const admissionPatient = {};
 
@@ -22,13 +22,30 @@
   function initInputs() {
     const pIn = $("patientInput");
     const polIn = $("policyInput");
-    $("patientsList").innerHTML = PATIENTS.map((p) => `<option value="${esc(p.name)}"></option>`).join("");
-    $("policiesList").innerHTML = PATIENTS.map((p) => `<option value="${p.policy}"></option>`).join("");
+    const hint = (p) => ($("patientHint").textContent = "ID: " + p.id + " · póliza " + p.policy);
+
+    autocomplete(
+      pIn,
+      PATIENTS.map((p) => ({ value: p.name, label: p.name, meta: p.id + " · " + p.policy })),
+      (o) => {
+        const p = byName[o.value.toLowerCase()];
+        if (p) { polIn.value = p.policy; hint(p); }
+      }
+    );
+
+    autocomplete(
+      polIn,
+      PATIENTS.map((p) => ({ value: p.policy, label: p.policy, meta: p.name })),
+      (o) => {
+        const p = byPolicy[o.value];
+        if (p) { pIn.value = p.name; hint(p); }
+      }
+    );
 
     pIn.addEventListener("input", () => {
       const p = byName[pIn.value.trim().toLowerCase()];
       if (p) {
-        $("patientHint").textContent = "ID: " + p.id + " · póliza " + p.policy;
+        hint(p);
         polIn.value = p.policy;
       } else {
         $("patientHint").textContent = pIn.value.trim() ? "Paciente nuevo (no registrado)" : "";
@@ -37,10 +54,7 @@
 
     polIn.addEventListener("input", () => {
       const p = byPolicy[polIn.value.trim()];
-      if (p) {
-        pIn.value = p.name;
-        $("patientHint").textContent = "ID: " + p.id + " · póliza " + p.policy;
-      }
+      if (p) { pIn.value = p.name; hint(p); }
     });
 
     const now = new Date();
@@ -49,7 +63,7 @@
 
     pIn.value = PATIENTS[0].name;
     polIn.value = PATIENTS[0].policy;
-    $("patientHint").textContent = "ID: " + PATIENTS[0].id + " · póliza " + PATIENTS[0].policy;
+    hint(PATIENTS[0]);
   }
 
   async function submitAdmission(ev) {

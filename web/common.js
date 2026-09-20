@@ -185,8 +185,103 @@ window.PG = (function () {
     } catch (e) {}
   }
 
+  /* ---------- autocompletado propio (estilizado) ---------- */
+  function autocomplete(input, options, onSelect) {
+    const wrap = document.createElement("div");
+    wrap.className = "ac";
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+
+    const list = document.createElement("div");
+    list.className = "ac-list";
+    wrap.appendChild(list);
+
+    let items = [];
+    let active = -1;
+    let isOpen = false;
+
+    const highlight = (text, q) => {
+      const t = String(text == null ? "" : text);
+      if (!q) return esc(t);
+      const i = t.toLowerCase().indexOf(q);
+      if (i < 0) return esc(t);
+      return esc(t.slice(0, i)) + "<mark>" + esc(t.slice(i, i + q.length)) + "</mark>" + esc(t.slice(i + q.length));
+    };
+
+    function close() {
+      list.classList.remove("open");
+      isOpen = false;
+      active = -1;
+    }
+
+    function render(value) {
+      const q = (value || "").trim().toLowerCase();
+      items = options.filter(
+        (o) =>
+          !q ||
+          String(o.value).toLowerCase().includes(q) ||
+          String(o.label || "").toLowerCase().includes(q)
+      );
+      if (!items.length) { close(); return; }
+      active = -1;
+      list.innerHTML = items
+        .map(
+          (o, i) => `<div class="ac-item" data-i="${i}">
+            <span>${highlight(o.label || o.value, q)}</span>
+            ${o.meta ? `<span class="ac-item__meta">${esc(o.meta)}</span>` : ""}
+          </div>`
+        )
+        .join("");
+      list.classList.add("open");
+      isOpen = true;
+    }
+
+    function setActive(i) {
+      const nodes = list.querySelectorAll(".ac-item");
+      if (!nodes.length) return;
+      if (active >= 0 && nodes[active]) nodes[active].classList.remove("active");
+      active = (i + nodes.length) % nodes.length;
+      nodes[active].classList.add("active");
+      nodes[active].scrollIntoView({ block: "nearest" });
+    }
+
+    function choose(i) {
+      const o = items[i];
+      if (!o) return;
+      input.value = o.value;
+      close();
+      if (onSelect) onSelect(o);
+    }
+
+    input.addEventListener("input", () => render(input.value));
+    input.addEventListener("focus", () => render(input.value));
+    input.addEventListener("blur", () => setTimeout(close, 140));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (!isOpen) render(input.value);
+        setActive(active + 1);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (!isOpen) render(input.value);
+        setActive(active - 1);
+      } else if (e.key === "Enter") {
+        if (isOpen && active >= 0) { e.preventDefault(); choose(active); }
+      } else if (e.key === "Escape") {
+        close();
+      }
+    });
+
+    list.addEventListener("mousedown", (e) => {
+      const item = e.target.closest(".ac-item");
+      if (!item) return;
+      e.preventDefault();
+      choose(Number(item.dataset.i));
+    });
+  }
+
   return {
     API_BASE, PATIENTS, LEVEL, esc, fmtTime, patientName, levelInfo,
-    checkHealth, connectWs, apiGet, toast, initNotify, notify,
+    checkHealth, connectWs, apiGet, toast, initNotify, notify, autocomplete,
   };
 })();
