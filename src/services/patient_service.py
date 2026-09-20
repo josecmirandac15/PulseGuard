@@ -22,9 +22,23 @@ class PatientService:
         relevant = []
         admission_lower = admission_reason.lower()
         
-        cardiac_keywords = ["chest", "heart", "cardiac", "angina", "infarction", "arrhythmia", "hypertension"]
-        respiratory_keywords = ["breath", "respiratory", "lung", "pulmonary", "asthma", "copd", "dyspnea"]
-        metabolic_keywords = ["diabetes", "glucose", "metabolic", "kidney", "renal"]
+        cardiac_keywords = [
+            "chest", "heart", "cardiac", "angina", "infarction", "arrhythmia",
+            "hypertension", "blood pressure",
+            "dolor de pecho", "toracico", "torácico", "pecho", "corazon", "corazón",
+            "cardiaco", "cardíaco", "infarto", "arritmia", "hipertension", "hipertensión",
+            "presion", "presión", "palpitaciones",
+        ]
+        respiratory_keywords = [
+            "breath", "respiratory", "lung", "pulmonary", "asthma", "copd", "dyspnea",
+            "respirar", "respiracion", "respiración", "disnea", "falta de aire", "asma",
+            "pulmon", "pulmón", "pulmonar", "tos", "sibilancias", "bronquial",
+        ]
+        metabolic_keywords = [
+            "diabetes", "glucose", "metabolic", "kidney", "renal",
+            "glucosa", "glicemia", "metabolico", "metabólico", "rinon", "riñón",
+            "azucar", "azúcar",
+        ]
         
         for pre_ex in pre_existences:
             condition_lower = pre_ex.condition_name.lower()
