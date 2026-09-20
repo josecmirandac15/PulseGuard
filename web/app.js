@@ -2,10 +2,7 @@
   "use strict";
 
   const params = new URLSearchParams(location.search);
-  const API_BASE =
-    params.get("api") ||
-    window.PULSEGUARD_API_BASE ||
-    "/api/v1";
+  const API_BASE = params.get("api") || window.PULSEGUARD_API_BASE || "/api/v1";
 
   const PATIENTS = [
     { id: "PAT-001", name: "Juan García", policy: "POL-2024-001" },
@@ -18,23 +15,44 @@
     { id: "PAT-008", name: "Isabel Torres", policy: "POL-2024-008" },
   ];
 
+  const LEVEL = {
+    info: { label: "Sin observaciones", short: "Normal" },
+    warning: { label: "Requiere revisión", short: "Revisión" },
+    critical: { label: "Atención inmediata", short: "Crítico" },
+  };
+
+  const patientName = (id) => (PATIENTS.find((p) => p.id === id) || {}).name || id;
+  const admissionPatient = {}; // admission_id -> patient_id
+
   const $ = (id) => document.getElementById(id);
   const esc = (s) =>
     String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
     );
-  const fmtDate = (iso) => {
+  const fmtTime = (iso) => {
     if (!iso) return "–";
     const d = new Date(iso);
-    return isNaN(d) ? esc(iso) : d.toLocaleString("es-PA", { hour12: false });
+    return isNaN(d)
+      ? esc(iso)
+      : d.toLocaleString("es-PA", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   };
+
+  /* ---------- hero ---------- */
+  function initHero() {
+    const h = new Date().getHours();
+    $("greeting").textContent =
+      h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches";
+    $("heroDate").textContent = new Date().toLocaleDateString("es-PA", {
+      weekday: "long", day: "numeric", month: "long",
+    });
+  }
 
   /* ---------- selects ---------- */
   function initSelects() {
     const pSel = $("patientSelect");
     const polSel = $("policySelect");
     pSel.innerHTML = PATIENTS.map(
-      (p) => `<option value="${p.id}">${esc(p.name)} (${p.id})</option>`
+      (p) => `<option value="${p.id}">${esc(p.name)}</option>`
     ).join("");
     polSel.innerHTML = PATIENTS.map(
       (p) => `<option value="${p.policy}">${p.policy}</option>`
@@ -43,13 +61,12 @@
       const found = PATIENTS.find((p) => p.id === pSel.value);
       if (found) polSel.value = found.policy;
     });
-
     const now = new Date();
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     $("timestamp").value = now.toISOString().slice(0, 16);
   }
 
-  /* ---------- API status ---------- */
+  /* ---------- status ---------- */
   async function checkHealth() {
     const el = $("apiStatus");
     const txt = $("apiStatusText");
@@ -58,10 +75,10 @@
       const d = await r.json();
       const ok = r.ok && d.database === "connected";
       el.className = "status " + (ok ? "ok" : "bad");
-      txt.textContent = ok ? "API + DB conectadas" : "API degradada";
+      txt.textContent = ok ? "Sistema en línea" : "Servicio inestable";
     } catch (e) {
       el.className = "status bad";
-      txt.textContent = "API no disponible";
+      txt.textContent = "Sin conexión";
     }
   }
 
@@ -70,7 +87,7 @@
     ev.preventDefault();
     const btn = $("submitBtn");
     btn.disabled = true;
-    btn.textContent = "Procesando…";
+    btn.textContent = "Evaluando…";
 
     const hr = $("hr").value, bp = $("bp").value, spo2 = $("spo2").value;
     const vitals = {};
@@ -96,59 +113,62 @@
         body: JSON.stringify(payload),
       });
       const data = await r.json();
-      if (!r.ok) throw new Error(data.detail ? JSON.stringify(data.detail) : r.statusText);
+      if (!r.ok) throw new Error("No se pudo registrar el ingreso.");
+      admissionPatient[data.admission_id] = payload.patient_id;
       renderResult(data, payload);
       loadAll();
     } catch (e) {
-      renderError(e.message || "Error al procesar la admisión");
+      renderError(e.message || "No se pudo registrar el ingreso.");
     } finally {
       btn.disabled = false;
-      btn.textContent = "Procesar Admisión";
+      btn.textContent = "Evaluar y notificar";
     }
   }
 
-  /* ---------- result rendering ---------- */
+  /* ---------- result ---------- */
   function renderError(msg) {
     $("resultBody").innerHTML =
       `<div class="alert-banner critical"><span class="badge">Error</span>
-       <div>${esc(msg)}</div></div>`;
+       <strong>${esc(msg)}</strong></div>`;
   }
 
   function renderResult(d, req) {
     const lvl = (d.alert_level || "info").toLowerCase();
-    $("resultTime").textContent = fmtDate(new Date().toISOString());
+    const info = LEVEL[lvl] || LEVEL.info;
+    $("resultTime").textContent = fmtTime(new Date().toISOString());
+
     const chips = `
       <div class="chips">
         <span class="chip ${d.hospital_notified ? "on" : "off"}">
-          ${d.hospital_notified ? "✓" : "✕"} Hospital notificado</span>
+          ${d.hospital_notified ? "✓" : "✕"} Admisiones del hospital</span>
         <span class="chip ${d.insurer_notified ? "on" : "off"}">
-          ${d.insurer_notified ? "✓" : "✕"} Gestor de casos notificado</span>
+          ${d.insurer_notified ? "✓" : "✕"} Gestor de casos del seguro</span>
       </div>`;
     const recos = (d.recommendations || []).length
       ? `<ul class="reco">${d.recommendations.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>`
       : "";
-    const ai = d.ai_report
-      ? `<div class="ai-report">${esc(d.ai_report)}</div>`
+    const report = d.ai_report
+      ? `<div class="report">${esc(d.ai_report)}</div>`
       : "";
+
     $("resultBody").innerHTML = `
       <div class="alert-banner ${lvl}">
-        <span class="badge">${esc(lvl)}</span>
+        <span class="badge">${esc(info.label)}</span>
         <strong>${esc(d.message || "")}</strong>
       </div>
-      <div class="result-grid">
-        <div class="kv"><span>Admisión</span><span>${esc(d.admission_id)}</span></div>
-        <div class="kv"><span>Paciente</span><span>${esc(req.patient_id)}</span></div>
+      <div class="kv-list">
+        <div class="kv"><span>Paciente</span><span>${esc(patientName(req.patient_id))}</span></div>
         <div class="kv"><span>Póliza</span><span>${esc(req.policy_number)}</span></div>
         <div class="kv"><span>Motivo</span><span>${esc(req.admission_reason)}</span></div>
         <div class="kv"><span>Hospital</span><span>${esc(req.hospital_code)}</span></div>
       </div>
       ${chips}
       ${recos}
-      ${ai}`;
+      ${report}`;
   }
 
-  /* ---------- KPIs + tables ---------- */
-  function setKpi(id, v) { $(id).textContent = v == null ? "0" : v; }
+  /* ---------- kpis + tables ---------- */
+  const setKpi = (id, v) => ($(id).textContent = v == null ? "0" : v);
 
   function applyStats(s) {
     if (!s) return;
@@ -164,26 +184,26 @@
     try {
       const r = await fetch(`${API_BASE}/alerts/stats`, { cache: "no-store" });
       applyStats(await r.json());
-    } catch (e) { /* ignore */ }
+    } catch (e) { /* silencioso */ }
   }
 
   async function loadAdmissions() {
     try {
       const r = await fetch(`${API_BASE}/admissions?limit=20`, { cache: "no-store" });
       const d = await r.json();
+      (d.admissions || []).forEach((a) => (admissionPatient[a.admission_id] = a.patient_id));
       const rows = (d.admissions || []).map(
         (a) => `<tr>
           <td>${esc(a.admission_id)}</td>
-          <td>${esc(a.patient_id)}</td>
+          <td>${esc(patientName(a.patient_id))}</td>
           <td>${esc(a.policy_number)}</td>
           <td>${esc(a.admission_reason)}</td>
           <td>${esc(a.hospital_code)}</td>
-          <td><span class="pill ok">${esc(a.status)}</span></td>
         </tr>`
       );
       $("admissionsBody").innerHTML =
-        rows.join("") || `<tr><td colspan="6" class="empty">Sin datos</td></tr>`;
-    } catch (e) { /* ignore */ }
+        rows.join("") || `<tr><td colspan="5" class="empty">Sin registros</td></tr>`;
+    } catch (e) { /* silencioso */ }
   }
 
   async function loadAlerts() {
@@ -192,24 +212,25 @@
       const q = level ? `?level=${encodeURIComponent(level)}&limit=20` : "?limit=20";
       const r = await fetch(`${API_BASE}/alerts${q}`, { cache: "no-store" });
       const d = await r.json();
-      const rows = (d.alerts || []).map(
-        (a) => `<tr>
-          <td><span class="pill ${esc(a.level)}">${esc(a.level)}</span></td>
-          <td>${esc(a.admission_id)}</td>
-          <td>${esc(a.message)}</td>
-          <td><span class="pill ${a.hospital_notified ? "ok" : "no"}">${a.hospital_notified ? "sí" : "no"}</span></td>
-          <td><span class="pill ${a.insurer_notified ? "ok" : "no"}">${a.insurer_notified ? "sí" : "no"}</span></td>
-          <td>${fmtDate(a.created_at)}</td>
-        </tr>`
-      );
+      const rows = (d.alerts || []).map((a) => {
+        const lvl = (a.level || "info").toLowerCase();
+        const pid = admissionPatient[a.admission_id];
+        return `<tr>
+          <td><span class="pill ${lvl}">${esc((LEVEL[lvl] || LEVEL.info).short)}</span></td>
+          <td>${esc(pid ? patientName(pid) : a.admission_id)}</td>
+          <td><span class="pill ${a.hospital_notified ? "ok" : "no"}">${a.hospital_notified ? "Enviada" : "Pendiente"}</span></td>
+          <td><span class="pill ${a.insurer_notified ? "ok" : "no"}">${a.insurer_notified ? "Enviada" : "Pendiente"}</span></td>
+          <td>${fmtTime(a.created_at)}</td>
+        </tr>`;
+      });
       $("alertsBody").innerHTML =
-        rows.join("") || `<tr><td colspan="6" class="empty">Sin datos</td></tr>`;
-    } catch (e) { /* ignore */ }
+        rows.join("") || `<tr><td colspan="5" class="empty">Sin registros</td></tr>`;
+    } catch (e) { /* silencioso */ }
   }
 
-  function loadAll() {
+  async function loadAll() {
     loadStats();
-    loadAdmissions();
+    await loadAdmissions();
     loadAlerts();
   }
 
@@ -219,14 +240,14 @@
     const el = $("toast");
     const lvl = (data.alert && data.alert.level) || "info";
     el.className = "toast " + lvl;
-    el.innerHTML = `<strong>${esc(lvl.toUpperCase())} · ${esc(data.patient_name)}</strong>
-      ${esc(data.admission_reason)} — ${esc((data.alert && data.alert.message) || "")}`;
+    el.innerHTML = `<strong>${esc((LEVEL[lvl] || LEVEL.info).label)} · ${esc(data.patient_name || "")}</strong>
+      ${esc(data.admission_reason || "")} — ${esc((data.alert && data.alert.message) || "")}`;
     requestAnimationFrame(() => el.classList.add("show"));
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => el.classList.remove("show"), 6000);
   }
 
-  /* ---------- websocket (tiempo real) ---------- */
+  /* ---------- tiempo real ---------- */
   let ws, retry = 0;
   function connectWs() {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -242,50 +263,48 @@
     } catch (e) {
       return scheduleReconnect();
     }
-
     ws.onopen = () => { retry = 0; };
     ws.onmessage = (ev) => {
       let msg;
       try { msg = JSON.parse(ev.data); } catch (e) { return; }
       if (msg.event === "admission.processed") {
-        renderResult(msg.data, {
-          patient_id: msg.data.patient_id,
-          policy_number: msg.data.policy_number,
-          admission_reason: msg.data.admission_reason,
-          hospital_code: msg.data.hospital_code,
+        const d = msg.data;
+        admissionPatient[d.admission_id] = d.patient_id;
+        renderResult(d, {
+          patient_id: d.patient_id,
+          policy_number: d.policy_number,
+          admission_reason: d.admission_reason,
+          hospital_code: d.hospital_code,
         });
-        applyStats(msg.data.stats);
-        loadAdmissions();
-        loadAlerts();
-        toast(msg.data);
+        applyStats(d.stats);
+        loadAdmissions().then(loadAlerts);
+        toast(d);
       }
     };
     ws.onclose = () => scheduleReconnect();
     ws.onerror = () => { try { ws.close(); } catch (e) {} };
   }
-
   function scheduleReconnect() {
     retry += 1;
-    const delay = Math.min(1000 * Math.pow(1.6, retry), 15000);
-    setTimeout(connectWs, delay);
+    setTimeout(connectWs, Math.min(1000 * Math.pow(1.6, retry), 15000));
   }
 
   /* ---------- init ---------- */
   document.addEventListener("DOMContentLoaded", () => {
+    initHero();
     initSelects();
     $("admissionForm").addEventListener("submit", submitAdmission);
     $("refreshBtn").addEventListener("click", loadAll);
     $("levelFilter").addEventListener("change", loadAlerts);
 
-    const toastEl = document.createElement("div");
-    toastEl.id = "toast";
-    toastEl.className = "toast";
-    document.body.appendChild(toastEl);
+    const t = document.createElement("div");
+    t.id = "toast";
+    t.className = "toast";
+    document.body.appendChild(t);
 
     checkHealth();
     loadAll();
     connectWs();
-
     setInterval(checkHealth, 20000);
     setInterval(loadStats, 15000);
   });

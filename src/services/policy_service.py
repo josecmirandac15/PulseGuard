@@ -19,24 +19,24 @@ class PolicyService:
         today = date.today()
 
         if policy.status == "cancelled":
-            return {"valid": False, "reason": "Policy cancelled"}
+            return {"valid": False, "reason": "cancelada"}
         
         if policy.status == "suspended":
-            return {"valid": False, "reason": "Policy suspended"}
+            return {"valid": False, "reason": "suspendida"}
         
         if policy.status == "expired":
-            return {"valid": False, "reason": "Policy expired"}
+            return {"valid": False, "reason": "expirada"}
         
         if policy.end_date < today:
-            return {"valid": False, "reason": "Policy expired"}
+            return {"valid": False, "reason": "expirada"}
         
         if policy.start_date > today:
-            return {"valid": False, "reason": "Policy not yet active"}
+            return {"valid": False, "reason": "aún no vigente"}
         
         if policy.status == "active":
-            return {"valid": True, "reason": "Policy active and valid"}
+            return {"valid": True, "reason": "vigente"}
         
-        return {"valid": False, "reason": "Unknown policy status"}
+        return {"valid": False, "reason": "con estado desconocido"}
 
     def check_coverage(self, policy: Policy, amount: float) -> dict:
         if policy.max_coverage_amount and amount > policy.max_coverage_amount:

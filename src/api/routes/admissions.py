@@ -65,8 +65,11 @@ async def receive_admission(admission: EmergencyAdmission, db: Session = Depends
             hospital_code=admission.hospital_code,
             status="received"
         )
-        db.add(admission_record)
-        db.commit()
+        if not db.query(Admission).filter(
+            Admission.admission_id == admission.admission_id
+        ).first():
+            db.add(admission_record)
+            db.commit()
 
         result = await run_in_threadpool(
             agent.process_admission, admission.model_dump(mode="json")

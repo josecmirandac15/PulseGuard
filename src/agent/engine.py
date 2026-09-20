@@ -34,21 +34,21 @@ class EmergencyAlertAgent:
             patient = patient_service.get_patient(patient_id)
 
             alert_level = "info"
-            message = "Admission processed successfully"
+            message = "Ingreso registrado. Cobertura vigente sin observaciones."
             recommendations = []
             analysis_parts = []
 
             if not policy:
                 alert_level = "critical"
-                message = "Policy not found"
-                recommendations.append("Verify policy number")
+                message = "No se encontró la póliza del asegurado."
+                recommendations.append("Verificar el número de póliza con la aseguradora")
                 analysis_parts.append("Policy not found in system")
             else:
                 validation = policy_service.validate_policy(policy)
                 if not validation["valid"]:
                     alert_level = "critical"
-                    message = f"Policy issue: {validation['reason']}"
-                    recommendations.append("Contact insurance provider")
+                    message = f"Cobertura no vigente: póliza {validation['reason']}."
+                    recommendations.append("Contactar al gestor de casos de la aseguradora")
                     analysis_parts.append(f"Policy validation failed: {validation['reason']}")
                 else:
                     analysis_parts.append("Policy is active and valid")
@@ -59,14 +59,14 @@ class EmergencyAlertAgent:
                         )
                         if pre_ex_result["has_relevant"]:
                             alert_level = "warning"
-                            message = "Patient has relevant pre-existing conditions"
-                            recommendations.append("Review pre-existing conditions before treatment")
+                            message = "Cobertura vigente. El paciente presenta pre-existencias relevantes."
+                            recommendations.append("Revisar las pre-existencias antes del tratamiento")
                             analysis_parts.append(
                                 f"Relevant conditions: {', '.join([c['condition'] for c in pre_ex_result['relevant_conditions']])}"
                             )
 
             if alert_level == "info":
-                recommendations.append("Proceed with standard admission process")
+                recommendations.append("Continuar con el proceso de admisión estándar")
 
             analysis = " | ".join(analysis_parts)
 
