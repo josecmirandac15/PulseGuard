@@ -1,5 +1,10 @@
+import sys
 from fastapi import FastAPI, Request
 from datetime import datetime
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
 
 app = FastAPI(title="Insurer Receiver")
 

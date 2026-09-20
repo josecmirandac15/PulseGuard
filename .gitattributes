@@ -1,0 +1,10 @@
+* text=auto
+*.py text eol=lf
+*.sh text eol=lf
+*.conf text eol=lf
+*.sql text eol=lf
+Dockerfile text eol=lf
+Dockerfile.dashboard text eol=lf
+Dockerfile.receiver text eol=lf
+docker-compose.yml text eol=lf
+.env.example text eol=lf

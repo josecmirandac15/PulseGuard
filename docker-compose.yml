@@ -1,23 +1,20 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:16-alpine
     container_name: pulseguard-db
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: pulseguard
-      POSTGRES_USER: pulseguard
-      POSTGRES_PASSWORD: pulseguard_secret_2026
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:-pulseguard}
+      POSTGRES_USER: ${POSTGRES_USER:-pulseguard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pulseguard_secret_2026}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./data/seed.sql:/docker-entrypoint-initdb.d/01-seed.sql
+      - ./data/seed.sql:/docker-entrypoint-initdb.d/01-seed.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pulseguard -d pulseguard"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pulseguard} -d ${POSTGRES_DB:-pulseguard}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
     networks:
       - pulseguard-network
 
@@ -26,17 +23,20 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: pulseguard-api
+    restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://pulseguard:pulseguard_secret_2026@db:5432/pulseguard
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pulseguard}:${POSTGRES_PASSWORD:-pulseguard_secret_2026}@db:5432/${POSTGRES_DB:-pulseguard}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_MODEL: qwen/qwen3.8-27b:free
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-qwen/qwen3.8-27b:free}
       HOSPITAL_WEBHOOK_URL: http://hospital-receiver:8001/webhook/hospital
       INSURER_WEBHOOK_URL: http://insurer-receiver:8002/webhook/insurer
       API_HOST: 0.0.0.0
       API_PORT: 8000
-      DEBUG: "true"
+      DEBUG: ${DEBUG:-false}
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
     ports:
-      - "8000:8000"
+      - "${PULSEGUARD_BIND:-127.0.0.1}:${PULSEGUARD_API_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -50,11 +50,12 @@ services:
       context: .
       dockerfile: Dockerfile.receiver
     container_name: pulseguard-hospital
+    restart: unless-stopped
     environment:
       RECEIVER_TYPE: hospital
       RECEIVER_PORT: 8001
-    ports:
-      - "8001:8001"
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
     networks:
       - pulseguard-network
 
@@ -63,11 +64,12 @@ services:
       context: .
       dockerfile: Dockerfile.receiver
     container_name: pulseguard-insurer
+    restart: unless-stopped
     environment:
       RECEIVER_TYPE: insurer
       RECEIVER_PORT: 8002
-    ports:
-      - "8002:8002"
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
     networks:
       - pulseguard-network
 
@@ -76,12 +78,27 @@ services:
       context: .
       dockerfile: Dockerfile.dashboard
     container_name: pulseguard-dashboard
+    restart: unless-stopped
     environment:
       API_URL: http://api:8000
-    ports:
-      - "8501:8501"
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
     depends_on:
       - api
+    networks:
+      - pulseguard-network
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: pulseguard-nginx
+    restart: unless-stopped
+    ports:
+      - "${PULSEGUARD_BIND:-127.0.0.1}:${PULSEGUARD_HTTP_PORT:-8080}:80"
+    volumes:
+      - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+      - dashboard
     networks:
       - pulseguard-network
 
