@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  const { esc, fmtTime, patientName, levelInfo, checkHealth, connectWs, apiGet, toast } = window.PG;
+  const { esc, fmtTime, patientName, levelInfo, checkHealth, connectWs, apiGet, toast, initNotify, notify } = window.PG;
 
   const admissionPatient = {};
   const admissionReason = {};
@@ -80,6 +80,7 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     hero();
+    initNotify("notifyBtn");
     checkHealth("apiStatus", "apiStatusText");
     loadHistory();
     $("refreshBtn").addEventListener("click", () => {
@@ -102,6 +103,12 @@
       }, true);
       loadStats();
       toast(d);
+      const lvl = (d.alert && d.alert.level) || "info";
+      notify(
+        "Nuevo ingreso · " + levelInfo(lvl).label,
+        (d.patient_name || "Paciente") + " — " + (d.admission_reason || ""),
+        d.admission_id
+      );
     });
 
     setInterval(() => checkHealth("apiStatus", "apiStatusText"), 20000);

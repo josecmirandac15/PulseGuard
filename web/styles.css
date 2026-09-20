@@ -436,3 +436,26 @@ td.empty { text-align: center; color: var(--text-light); padding: 26px; }
   cursor: pointer;
 }
 .switch input { width: auto; }
+
+/* ---------- botón de alertas del navegador ---------- */
+.btn-bell {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text-light);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-bell:hover { color: var(--first); border-color: var(--second); }
+.btn-bell.on {
+  color: var(--ok);
+  border-color: hsla(168, 62%, 38%, 0.4);
+  background: hsla(168, 62%, 38%, 0.07);
+}

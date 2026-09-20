@@ -118,5 +118,75 @@ window.PG = (function () {
 
   document.addEventListener("DOMContentLoaded", setActiveNav);
 
-  return { API_BASE, PATIENTS, LEVEL, esc, fmtTime, patientName, levelInfo, checkHealth, connectWs, apiGet, toast };
+  /* ---------- notificaciones del navegador ---------- */
+  const NOTIFY_KEY = "pg_notify_enabled";
+  const notifySupported = () => "Notification" in window;
+  const notifyEnabled = () =>
+    notifySupported() &&
+    Notification.permission === "granted" &&
+    localStorage.getItem(NOTIFY_KEY) === "1";
+
+  function renderBell(btn) {
+    const label = btn.querySelector("span");
+    if (!notifySupported()) { btn.style.display = "none"; return; }
+    if (Notification.permission === "denied") {
+      btn.classList.remove("on");
+      btn.title = "Notificaciones bloqueadas en el navegador";
+      if (label) label.textContent = "Notificaciones bloqueadas";
+    } else if (notifyEnabled()) {
+      btn.classList.add("on");
+      btn.title = "Alertas activadas (clic para desactivar)";
+      if (label) label.textContent = "Alertas activadas";
+    } else {
+      btn.classList.remove("on");
+      btn.title = "Activar avisos de nuevos ingresos";
+      if (label) label.textContent = "Activar alertas";
+    }
+  }
+
+  function initNotify(btnId) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    renderBell(btn);
+    btn.addEventListener("click", async () => {
+      if (!notifySupported()) return;
+      if (Notification.permission === "denied") {
+        alert("Las notificaciones están bloqueadas. Habilítalas en los ajustes del sitio de tu navegador.");
+        return;
+      }
+      if (Notification.permission === "default") {
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") { renderBell(btn); return; }
+      }
+      const on = localStorage.getItem(NOTIFY_KEY) === "1";
+      localStorage.setItem(NOTIFY_KEY, on ? "0" : "1");
+      renderBell(btn);
+      if (!on) {
+        try {
+          new Notification("Alertas de PulseGuard activadas", {
+            body: "Te avisaremos cuando ingrese un paciente a emergencia.",
+            icon: "/favicon.png",
+          });
+        } catch (e) {}
+      }
+    });
+  }
+
+  function notify(title, body, tag) {
+    if (!notifyEnabled()) return;
+    try {
+      const n = new Notification(title, {
+        body,
+        icon: "/favicon.png",
+        badge: "/favicon-32.png",
+        tag,
+      });
+      n.onclick = () => { window.focus(); n.close(); };
+    } catch (e) {}
+  }
+
+  return {
+    API_BASE, PATIENTS, LEVEL, esc, fmtTime, patientName, levelInfo,
+    checkHealth, connectWs, apiGet, toast, initNotify, notify,
+  };
 })();
