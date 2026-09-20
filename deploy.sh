@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # PulseGuard - redespliegue en un comando (rama deploy/web)
 set -euo pipefail
+umask 022
 cd "$(dirname "$0")"
 
 echo "==> 1/4 Actualizando código"
 git fetch origin
 git reset --hard origin/deploy/web
+chmod -R a+rX web
 git log --oneline -1
 
 echo "==> 2/4 Construyendo y levantando contenedores"
