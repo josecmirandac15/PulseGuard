@@ -40,8 +40,8 @@ CREATE TABLE IF NOT EXISTS policies (
 
 CREATE TABLE IF NOT EXISTS admissions (
     admission_id VARCHAR(30) PRIMARY KEY,
-    patient_id VARCHAR(20) REFERENCES patients(patient_id),
-    policy_number VARCHAR(30) REFERENCES policies(policy_number),
+    patient_id VARCHAR(20),
+    policy_number VARCHAR(30),
     timestamp TIMESTAMP NOT NULL,
     admission_reason VARCHAR(500) NOT NULL,
     vital_signs JSONB,
