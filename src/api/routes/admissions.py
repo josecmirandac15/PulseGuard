@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
+from starlette.concurrency import run_in_threadpool
 from datetime import datetime
 import time
 
@@ -7,10 +9,44 @@ from src.models.base import get_db
 from src.models import Admission, Alert, AuditLog
 from src.api.schemas.admission import EmergencyAdmission, AdmissionResponse
 from src.agent.engine import EmergencyAlertAgent
+from src.core.realtime import manager
 
 router = APIRouter()
 
 agent = EmergencyAlertAgent()
+
+
+async def _broadcast_admission(db: Session, admission: EmergencyAdmission, result: dict):
+    """Emite la admisión procesada al panel en tiempo real."""
+    try:
+        stats_rows = db.query(
+            Alert.level, func.count(Alert.alert_id)
+        ).group_by(Alert.level).all()
+        payload = {
+            "admission_id": result["admission_id"],
+            "patient_id": admission.patient_id,
+            "patient_name": result.get("patient_name", "Unknown"),
+            "policy_number": admission.policy_number,
+            "admission_reason": admission.admission_reason,
+            "hospital_code": admission.hospital_code,
+            "timestamp": admission.timestamp.isoformat(),
+            "alert": {
+                "level": result["alert_level"],
+                "message": result["message"],
+                "recommendations": result.get("recommendations", []),
+                "ai_report": result.get("ai_report"),
+            },
+            "hospital_notified": result.get("hospital_notified", False),
+            "insurer_notified": result.get("insurer_notified", False),
+            "stats": {
+                "total_admissions": db.query(Admission).count(),
+                "total_alerts": db.query(Alert).count(),
+                "alerts_by_level": {level: count for level, count in stats_rows},
+            },
+        }
+        await manager.broadcast("admission.processed", payload)
+    except Exception:
+        pass
 
 
 @router.post("/webhook/admission", response_model=AdmissionResponse)
@@ -32,7 +68,11 @@ async def receive_admission(admission: EmergencyAdmission, db: Session = Depends
         db.add(admission_record)
         db.commit()
 
-        result = agent.process_admission(admission.model_dump(mode="json"))
+        result = await run_in_threadpool(
+            agent.process_admission, admission.model_dump(mode="json")
+        )
+
+        await _broadcast_admission(db, admission, result)
 
         processing_time = (time.time() - start_time) * 1000
 

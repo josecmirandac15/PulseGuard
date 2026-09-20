@@ -131,7 +131,13 @@ class EmergencyAlertAgent:
                 "status": "processed",
                 "alert_level": alert_level,
                 "message": message,
+                "recommendations": recommendations,
                 "ai_report": ai_report,
+                "patient_name": patient.name if patient else "Unknown",
+                "policy_number": policy_number,
+                "admission_reason": admission_data.get("admission_reason"),
+                "hospital_code": admission_data.get("hospital_code"),
+                "timestamp": admission_data.get("timestamp"),
                 "hospital_notified": hospital_result.get("success", False),
                 "insurer_notified": insurer_result.get("success", False)
             }

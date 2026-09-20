@@ -73,21 +73,6 @@ services:
     networks:
       - pulseguard-network
 
-  dashboard:
-    build:
-      context: .
-      dockerfile: Dockerfile.dashboard
-    container_name: pulseguard-dashboard
-    restart: unless-stopped
-    environment:
-      API_URL: http://api:8000
-      PYTHONUTF8: "1"
-      PYTHONIOENCODING: utf-8
-    depends_on:
-      - api
-    networks:
-      - pulseguard-network
-
   nginx:
     image: nginx:1.27-alpine
     container_name: pulseguard-nginx
@@ -96,9 +81,9 @@ services:
       - "${PULSEGUARD_BIND:-127.0.0.1}:${PULSEGUARD_HTTP_PORT:-8080}:80"
     volumes:
       - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./web:/usr/share/nginx/html:ro
     depends_on:
       - api
-      - dashboard
     networks:
       - pulseguard-network
 

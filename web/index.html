@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PulseGuard · Alerta Temprana de Emergencias</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12h4l2 6 4-16 2 10h6" />
+        </svg>
+      </div>
+      <div>
+        <h1>PulseGuard</h1>
+        <p>Alerta Temprana de Ingresos a Emergencias</p>
+      </div>
+    </div>
+    <div class="status" id="apiStatus">
+      <span class="dot"></span>
+      <span id="apiStatusText">Conectando…</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="col-left">
+      <div class="card">
+        <div class="card-head">
+          <h2>Nueva Admisión de Emergencia</h2>
+          <span class="hint">Webhook entrante</span>
+        </div>
+
+        <form id="admissionForm" class="form">
+          <label>
+            Paciente
+            <select id="patientSelect"></select>
+          </label>
+
+          <label>
+            Póliza
+            <select id="policySelect"></select>
+          </label>
+
+          <label>
+            Motivo de admisión
+            <textarea id="reason" rows="3" placeholder="Ej: Chest pain, shortness of breath…" required></textarea>
+          </label>
+
+          <label>
+            Síntomas <span class="muted">(separados por coma)</span>
+            <input id="symptoms" type="text" placeholder="chest pain, dyspnea, diaphoresis" />
+          </label>
+
+          <div class="grid-2">
+            <label>
+              Hospital
+              <select id="hospital">
+                <option>HOSP-001</option>
+                <option>HOSP-002</option>
+                <option>HOSP-003</option>
+              </select>
+            </label>
+            <label>
+              Fecha / hora
+              <input id="timestamp" type="datetime-local" />
+            </label>
+          </div>
+
+          <details class="vitals">
+            <summary>Signos vitales (opcional)</summary>
+            <div class="grid-3">
+              <label>FC <input id="hr" type="number" placeholder="95" /></label>
+              <label>PA <input id="bp" type="text" placeholder="140/90" /></label>
+              <label>SpO₂ <input id="spo2" type="number" placeholder="94" /></label>
+            </div>
+          </details>
+
+          <button type="submit" class="btn-primary" id="submitBtn">
+            Procesar Admisión
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <section class="col-right">
+      <div class="card result-card" id="resultCard">
+        <div class="card-head">
+          <h2>Resultado del Agente</h2>
+          <span class="hint" id="resultTime"></span>
+        </div>
+        <div id="resultBody" class="result-empty">
+          <p>Registra una admisión para ver el análisis de póliza, pre-existencias y notificaciones.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <section class="kpis" id="kpis">
+    <div class="kpi">
+      <span class="kpi-label">Admisiones totales</span>
+      <span class="kpi-value" id="kpiTotal">–</span>
+    </div>
+    <div class="kpi">
+      <span class="kpi-label">Admisiones hoy</span>
+      <span class="kpi-value" id="kpiToday">–</span>
+    </div>
+    <div class="kpi kpi-info">
+      <span class="kpi-label">Info</span>
+      <span class="kpi-value" id="kpiInfo">–</span>
+    </div>
+    <div class="kpi kpi-warning">
+      <span class="kpi-label">Warning</span>
+      <span class="kpi-value" id="kpiWarning">–</span>
+    </div>
+    <div class="kpi kpi-critical">
+      <span class="kpi-label">Critical</span>
+      <span class="kpi-value" id="kpiCritical">–</span>
+    </div>
+  </section>
+
+  <section class="tables">
+    <div class="card">
+      <div class="card-head">
+        <h2>Admisiones recientes</h2>
+        <button class="btn-ghost" id="refreshBtn">Actualizar</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Admisión</th><th>Paciente</th><th>Póliza</th>
+              <th>Motivo</th><th>Hospital</th><th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="admissionsBody">
+            <tr><td colspan="6" class="empty">Sin datos</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Alertas recientes</h2>
+        <div class="filters">
+          <select id="levelFilter">
+            <option value="">Todas</option>
+            <option value="info">Info</option>
+            <option value="warning">Warning</option>
+            <option value="critical">Critical</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nivel</th><th>Admisión</th><th>Mensaje</th>
+              <th>Hospital</th><th>Aseguradora</th><th>Fecha</th>
+            </tr>
+          </thead>
+          <tbody id="alertsBody">
+            <tr><td colspan="6" class="empty">Sin datos</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <span>PulseGuard · hackIAthon Panamá 2026 · Reto 4</span>
+    <a href="/docs" target="_blank" rel="noopener">API Docs</a>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
