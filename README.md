@@ -39,9 +39,25 @@ departamento de admisiones del hospital y al gestor de casos del seguro — con 
 
 ## Capturas
 
-| Registro de ingreso | Admisiones del hospital | Gestor de casos |
-|:---:|:---:|:---:|
-| ![Registro](docs/screenshots/registro.png) | ![Admisiones](docs/screenshots/hospital.png) | ![Gestor de casos](docs/screenshots/aseguradora.png) |
+**1. Registro del ingreso a emergencia** — el personal de admisiones registra al paciente; el sistema valida la cobertura y dispara la notificación automáticamente.
+
+![Registro del ingreso](docs/screenshots/01-registro.png)
+
+**2. Autocompletado de asegurados** — al escribir aparecen los pacientes registrados (nombre · póliza); también se permite ingresar un paciente nuevo.
+
+![Autocompletado](docs/screenshots/02-autocompletado.png)
+
+**3. Resultado de la evaluación** — nivel de alerta, pre-existencias relevantes, notificaciones enviadas y el informe generado por IA.
+
+![Resultado de la evaluación](docs/screenshots/03-resultado.png)
+
+**4. Admisiones del hospital** — bandeja en tiempo real con cada ingreso notificado y su estado de cobertura.
+
+![Admisiones del hospital](docs/screenshots/04-admisiones.png)
+
+**5. Gestor de casos del seguro** — casos priorizados con el análisis y el informe del caso para su revisión.
+
+![Gestor de casos del seguro](docs/screenshots/05-gestor-casos.png)
 
 ## Arquitectura
 
