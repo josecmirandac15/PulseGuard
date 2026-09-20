@@ -124,6 +124,14 @@ docker compose up -d --build
 
 Abre `http://localhost:8080`.
 
+### Redespliegue en el servidor
+
+```bash
+./deploy.sh
+```
+
+Actualiza el código, reconstruye los contenedores y reinicia el proxy.
+
 ### Sin Docker
 
 ```bash
