@@ -1,46 +1,83 @@
-# PulseGuard — Sistema de Alerta Temprana de Ingresos a Emergencias
+<p align="center">
+  <img src="web/favicon.png" width="96" alt="PulseGuard" />
+</p>
 
-Solución al **Reto 4** del *hackIAthon Panamá 2026*.
+<h1 align="center">PulseGuard</h1>
 
-Un **webhook** se activa cuando un asegurado ingresa a la emergencia de un hospital.
-Un agente revisa **instantáneamente** la validez de la póliza y el historial de
-pre-existencias, y envía una **notificación simultánea** al departamento de
-admisiones del hospital y al gestor de casos del seguro, con un panel en
-**tiempo real**.
+<p align="center">
+  <b>Sistema de Alerta Temprana de Ingresos a Emergencias</b><br/>
+  Cuando un asegurado entra a urgencias, hospital y aseguradora lo saben al instante.
+</p>
 
-- **Demo en vivo:** https://pulseguard.sweetcode.studio
-- **API Docs:** https://pulseguard.sweetcode.studio/docs
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/FastAPI-REST%20%2B%20Webhook-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Realtime-WebSocket-2dd4bf" alt="WebSocket" />
+  <img src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white" alt="Docker" />
+  <img src="https://img.shields.io/badge/hackIAthon-Panam%C3%A1%202026-1e3a6e" alt="hackIAthon" />
+</p>
+
+<p align="center">
+  <a href="https://pulseguard.sweetcode.studio"><b>Demo en vivo</b></a> ·
+  <a href="https://pulseguard.sweetcode.studio/docs">API Docs</a> ·
+  <a href="docs/HERRAMIENTAS-IA.pdf">Herramientas de IA (PDF)</a>
+</p>
 
 ---
+
+## ¿Qué es?
+
+**Reto 4 — hackIAthon Panamá 2026.** Un **webhook** se activa cuando un asegurado ingresa a
+la emergencia de un hospital. Un **agente** valida **instantáneamente** la vigencia de la
+póliza y el historial de pre-existencias, y envía una **notificación simultánea** al
+departamento de admisiones del hospital y al gestor de casos del seguro — con un panel en
+**tiempo real** para ambos.
+
+> **Diseño clave:** la lógica crítica (cobertura y pre-existencias) es **determinista**
+> (PostgreSQL + Python). La IA **solo redacta** el informe; nunca decide cobertura.
+
+## Capturas
+
+| Registro de ingreso | Admisiones del hospital | Gestor de casos |
+|:---:|:---:|:---:|
+| ![Registro](docs/screenshots/registro.png) | ![Admisiones](docs/screenshots/hospital.png) | ![Gestor de casos](docs/screenshots/aseguradora.png) |
 
 ## Arquitectura
 
 ```
-                    ┌──────────────────────────────┐
-   Navegador  ──────►  nginx  (web estática + proxy)│
-   (panel RT)  ◄─WS──┤   /            → web/        │
-                    │   /api/v1/*    → api:8000    │
-                    └──────────────┬───────────────┘
-                                   │
-                         ┌─────────▼──────────┐
-   Webhook admisión ────►│  FastAPI (api)     │
-                         │  /api/v1/webhook/  │
-                         │  admission         │
-                         └───────┬────────────┘
-                                 │ EmergencyAlertAgent (determinista)
-                     ┌───────────┼───────────────┐
-                     ▼           ▼               ▼
-             ┌────────────┐ ┌──────────┐  ┌──────────────┐
-             │ PostgreSQL │ │ IA (LLM) │  │ WebSocket hub│
-             │ pólizas +  │ │ síntesis │  │  /ws/alerts  │
-             │ pre-exist. │ │ reporte  │  └──────┬───────┘
-             └────────────┘ └──────────┘         │
-                                                 ▼
-                              ┌───────────────────────────────┐
-                              │ hospital-receiver  (8001)     │
-                              │ insurer-receiver   (8002)     │
-                              └───────────────────────────────┘
+Hospital registra al paciente
+        │  (webhook, automático)
+        ▼
+┌──────────────────────────────────────────────┐
+│  PulseGuard (FastAPI)                         │
+│  1. Guarda el ingreso en PostgreSQL           │
+│  2. AGENTE (determinista):                    │
+│       • ¿póliza vigente?  (estado + fechas)   │
+│       • ¿pre-existencias relevantes?          │
+│  3. IA: redacta el informe clínico            │
+│     (si no hay API key, usa plantilla local)  │
+└───────────────┬──────────────────────────────┘
+                │  en el mismo instante
+      ┌─────────┴──────────┐
+      ▼                    ▼
+Admisiones del        Gestor de casos
+hospital              del seguro
+      └─────────┬──────────┘
+                ▼
+     WebSocket → los 3 portales en vivo
 ```
+
+## Niveles de alerta
+
+| Nivel | Cuándo |
+|---|---|
+| 🟢 Sin observaciones | Póliza vigente, sin pre-existencias relevantes |
+| 🟡 Requiere revisión | Póliza vigente **con** pre-existencias relevantes |
+| 🔴 Atención inmediata | Póliza inexistente, expirada, suspendida o cancelada |
+
+> "Atención inmediata" **no** niega la atención: en urgencias el paciente siempre se atiende.
+> La alerta es para que administración y seguro resuelvan la cobertura de inmediato.
 
 ## Stack
 
@@ -50,37 +87,8 @@ admisiones del hospital y al gestor de casos del seguro, con un panel en
 | Base de datos | PostgreSQL 16 + SQLAlchemy + Alembic |
 | IA | OpenRouter (modelo configurable) con *fallback* determinista |
 | Tiempo real | WebSocket nativo (`/api/v1/ws/alerts`) |
-| Frontend | HTML + CSS + JS (sin frameworks, sin dependencias externas) |
+| Frontend | HTML + CSS + JS (sin frameworks ni dependencias externas) |
 | Proxy / Deploy | nginx + Docker Compose + Cloudflare Tunnel |
-
-> **Decisión de diseño:** la lógica crítica (vigencia de póliza y pre-existencias)
-> es **determinista** (SQL/Python). La IA **solo redacta** el reporte; nunca decide
-> el nivel de alerta.
-
----
-
-## Flujo del agente
-
-1. `POST /api/v1/webhook/admission` recibe el ingreso.
-2. Se guarda la admisión en PostgreSQL.
-3. `EmergencyAlertAgent`:
-   - busca la póliza y la valida (activa / expirada / suspendida / cancelada / no existe),
-   - busca al paciente y cruza sus **pre-existencias** con el motivo de ingreso,
-   - determina el nivel: `info`, `warning` o `critical`,
-   - pide a la IA un **reporte ejecutivo** (o usa el fallback),
-   - **notifica simultáneamente** al hospital y a la aseguradora,
-   - registra todo en `audit_logs`.
-4. El resultado se **emite por WebSocket** a todos los paneles conectados.
-
-### Niveles de alerta
-
-| Nivel | Cuándo |
-|-------|--------|
-| `critical` | Póliza inexistente, expirada, suspendida o cancelada |
-| `warning` | Póliza válida **con** pre-existencias relevantes |
-| `info` | Póliza válida sin pre-existencias relevantes |
-
----
 
 ## API
 
@@ -91,11 +99,11 @@ admisiones del hospital y al gestor de casos del seguro, con un panel en
 | `GET` | `/api/v1/admissions/{id}` | Detalle + alertas |
 | `GET` | `/api/v1/alerts` | Alertas (filtro `?level=`) |
 | `GET` | `/api/v1/alerts/stats` | KPIs |
-| `GET` | `/api/v1/dashboard/stats` | KPIs del panel |
 | `WS` | `/api/v1/ws/alerts` | Canal en tiempo real |
 | `GET` | `/health` | Estado de la API y la base de datos |
 
-Ejemplo:
+<details>
+<summary>Ejemplo de petición</summary>
 
 ```bash
 curl -X POST https://pulseguard.sweetcode.studio/api/v1/webhook/admission \
@@ -110,52 +118,20 @@ curl -X POST https://pulseguard.sweetcode.studio/api/v1/webhook/admission \
     "hospital_code": "HOSP-001"
   }'
 ```
-
----
+</details>
 
 ## Ejecución local
 
-### Docker (recomendado)
-
 ```bash
-cp .env.example .env        # ajusta POSTGRES_PASSWORD y OPENROUTER_API_KEY
-docker compose up -d --build
+cp .env.example .env          # ajusta POSTGRES_PASSWORD y OPENROUTER_API_KEY
+docker compose up -d --build  # stack en http://localhost:8080
 ```
-
-Abre `http://localhost:8080`.
 
 ### Redespliegue en el servidor
 
 ```bash
 ./deploy.sh
 ```
-
-Actualiza el código, reconstruye los contenedores y reinicia el proxy.
-
-### Sin Docker
-
-```bash
-pip install -r requirements.txt
-# requiere PostgreSQL accesible vía DATABASE_URL
-uvicorn src.api.main:app --port 8000
-```
-
----
-
-## Variables de entorno
-
-| Variable | Descripción |
-|----------|-------------|
-| `DATABASE_URL` | Cadena de conexión PostgreSQL |
-| `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | Credenciales de la BD (docker-compose) |
-| `OPENROUTER_API_KEY` | Clave de OpenRouter (opcional: si falta, usa fallback) |
-| `OPENROUTER_MODEL` | Modelo a usar (por defecto `qwen/qwen3.8-27b:free`) |
-| `HOSPITAL_WEBHOOK_URL` | Endpoint del hospital |
-| `INSURER_WEBHOOK_URL` | Endpoint de la aseguradora |
-| `PULSEGUARD_BIND` | Interfaz de bind de nginx/API |
-| `PULSEGUARD_HTTP_PORT` | Puerto público de nginx |
-
----
 
 ## Estructura
 
@@ -168,20 +144,34 @@ src/
   services/       policy, patient, alert, notification, ai
   agent/engine.py Orquestador determinista
   receivers/      Mocks hospital / aseguradora
-web/              Frontend estático (panel en tiempo real)
+web/              Frontend estático (3 portales)
 deploy/nginx/     Reverse proxy
 data/seed.sql     Esquema + datos de prueba
 ```
 
-## Datos de prueba
+## Equipo
 
-`data/seed.sql` incluye 8 pacientes y 8 pólizas con todos los estados
-(activas, expirada, suspendida, cancelada) y pre-existencias variadas.
-
----
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/authors/daniel_round.png" width="130" alt="Daniel Valdés" /><br/>
+      <b>Daniel Valdés</b><br/>
+      <sub>Desarrollo · Infraestructura · Seguridad</sub><br/><br/>
+      <a href="https://www.linkedin.com/in/daniel--valdes">LinkedIn</a> ·
+      <a href="https://github.com/danielvaldess">GitHub</a>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/authors/jose_round.png" width="130" alt="José C. Miranda" /><br/>
+      <b>José C. Miranda</b><br/>
+      <sub>Desarrollo de software · Datos</sub><br/><br/>
+      <a href="https://www.linkedin.com/in/jos-mi-cast-300mm1500/">LinkedIn</a> ·
+      <a href="https://github.com/josecmirandac15">GitHub</a>
+    </td>
+  </tr>
+</table>
 
 ## Entregables hackIAthon
 
-- **Repositorio:** este repo (rama `main`).
+- **Repositorio:** este repo.
 - **Agente en ejecución:** https://pulseguard.sweetcode.studio
-- **Herramientas de IA usadas:** [`docs/HERRAMIENTAS-IA.pdf`](docs/HERRAMIENTAS-IA.pdf) (fuente: [`docs/HERRAMIENTAS-IA.md`](docs/HERRAMIENTAS-IA.md)).
+- **Herramientas de IA:** [`docs/HERRAMIENTAS-IA.pdf`](docs/HERRAMIENTAS-IA.pdf) (fuente: [`docs/HERRAMIENTAS-IA.md`](docs/HERRAMIENTAS-IA.md))
