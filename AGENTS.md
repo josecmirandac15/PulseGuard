@@ -1,109 +1,77 @@
-# PulseGuard - Agent Instructions
+# PulseGuard — Agent Instructions
+
+Reto 4, hackIAthon Panamá 2026: webhook de ingreso a emergencias → valida póliza y
+pre-existencias (determinista) → notifica **simultáneamente** a admisiones del hospital
+y al gestor de casos del seguro → panel en tiempo real.
+
+## Branch & repo layout (read first)
+
+- Work on **`deploy/web`**, not `main`. `main` is the old v1 (no Docker/Postgres/frontend).
+  Push with `git push origin deploy/web`.
+- This folder is its own git repo, nested inside the outer `hackiathon/` folder.
+  The outer folder is a separate empty git repo holding only the hackathon PDFs — do not
+  confuse the two or commit PDFs here.
 
 ## Architecture
 
-Multi-service emergency admission alert system. 5 Docker containers orchestrated via `docker-compose.yml`:
+- FastAPI (`src/api`), prefix **`/api/v1`**; health at `/health`, docs at `/docs`.
+- SQLAlchemy + PostgreSQL (`src/models`); agent `src/agent/engine.py`; AI `src/services/ai_service.py`.
+- Real-time hub: `src/core/realtime.py` (`ConnectionManager`) exposed at `WS /api/v1/ws/alerts`.
+- Frontend: plain HTML/CSS/JS in `web/` (**no Streamlit**). Three portals: `/` (registro),
+  `/hospital` (admisiones), `/aseguradora` (gestor de casos); share `web/common.js`.
+- nginx serves `web/` and proxies `/api/` (with WebSocket upgrade) — `deploy/nginx/default.conf`.
+- docker-compose services: `db`, `api`, `hospital-receiver`, `insurer-receiver`, `nginx`.
+  Receivers are standalone FastAPI mocks (no `src.` imports), built from `Dockerfile.receiver`.
 
-| Service | Port | Container | Purpose |
-|---------|------|-----------|---------|
-| PostgreSQL | 5432 | pulseguard-db | Persistent data store |
-| API | 8000 | pulseguard-api | Webhook + agent logic + AI reports |
-| Hospital Receiver | 8001 | pulseguard-hospital | Mock hospital notifications |
-| Insurer Receiver | 8002 | pulseguard-insurer | Mock insurer notifications |
-| Dashboard | 8501 | pulseguard-dashboard | Streamlit UI |
+## Hard-won gotchas
 
-## Run Commands
+- **Tests are broken on `deploy/web`.** `tests/test_services.py` targets the old v1
+  `PolicyService()` (no DB session, `.policies`, `.check_pre_existences`). `pytest` fails;
+  this is not a regression. Rewrite against the SQLAlchemy services before trusting it.
+- **Decisions are deterministic, the LLM only writes prose.** Policy validity and
+  pre-existence matching are SQL/Python. Without `OPENROUTER_API_KEY`, `ai_service` uses
+  `_generate_fallback_report()`. Never move coverage logic into the AI.
+- `policy_service.validate_policy()` returns Spanish lowercase reasons (`expirada`,
+  `suspendida`, `cancelada`, `aún no vigente`); `engine.py` interpolates them into the
+  Spanish message. Keep user-facing strings in Spanish and clinical.
+- Alert levels: `info`=sin observaciones, `warning`=requiere revisión,
+  `critical`=atención inmediata (administrative action — emergency care is never denied).
+- `POST /api/v1/webhook/admission` is idempotent by `admission_id` (duplicates no longer 500).
+  The agent runs in a threadpool; the WS broadcast happens after processing.
+- **Windows:** use `python -m uvicorn`, not bare `uvicorn`. Receivers print emojis, so
+  UTF-8 is forced (`sys.stdout.reconfigure` + `PYTHONUTF8=1`); removing it crashes on cp1252.
+- **Static caching:** Cloudflare caches `.js`/`.css`. After editing frontend assets, bump the
+  `?v=N` query in the HTML files; nginx sets `Cache-Control: no-store`.
+- **File perms:** nginx (uid 101) must read `web/`. `deploy.sh` applies `umask 022` +
+  `chmod -R a+rX web`; skip it and you get 403 on every static file.
+- Schema comes from `data/seed.sql` (Postgres, first volume init) and
+  `Base.metadata.create_all` at API startup. Alembic is configured but unused at runtime.
+- `./src:/app/src` is bind-mounted into `api`: code changes apply without rebuild, but
+  dependency/env changes need `docker compose up -d --build` or `--force-recreate`.
 
-```bash
-# Start all services
-docker compose up -d
-
-# Rebuild after code changes
-docker compose up -d --build
-
-# Rebuild specific service
-docker compose up -d --build api
-
-# Force recreate (picks up env var changes)
-$env:OPENROUTER_API_KEY = "your-key"
-docker compose up -d --force-recreate api
-
-# View logs
-docker compose logs api
-docker compose logs hospital-receiver
-```
-
-**IMPORTANT**: Always use `docker compose` not bare `docker-compose`. On Windows, run from PowerShell at `D:\Proyectos\PulseGuard`.
-
-## Data Flow
-
-```
-Dashboard → POST /api/v1/webhook/admission → API (8000)
-    → policy_service.validate_policy() → patient_service.check_pre_existences()
-    → alert_service.create_alert() → ai_service.generate_report()
-    → notification_service.notify_hospital() (8001)
-    → notification_service.notify_insurer() (8002)
-    → Audit log written to PostgreSQL
-```
-
-## Key Files
-
-```
-src/
-├── api/
-│   ├── main.py                    # FastAPI app, lifespan, CORS, router includes
-│   ├── routes/admissions.py       # POST /webhook/admission, GET /admissions
-│   ├── routes/alerts.py           # GET /alerts, GET /alerts/stats
-│   └── schemas/admission.py       # Pydantic request/response models
-├── agent/engine.py                # Agent orchestrator - coordinates all services
-├── models/                        # SQLAlchemy models (Patient, Policy, Admission, Alert, AuditLog)
-│   └── base.py                    # Engine, SessionLocal, get_db dependency
-├── services/
-│   ├── policy_service.py          # Policy validation (active/expired/cancelled/suspended)
-│   ├── patient_service.py         # Pre-existence matching by medical keywords
-│   ├── alert_service.py           # Alert CRUD, levels: info/warning/critical
-│   ├── notification_service.py    # HTTP POST to hospital + insurer receivers
-│   └── ai_service.py              # OpenRouter API for AI reports, fallback to local
-├── dashboard/app.py               # Streamlit UI (connects via API_URL env var)
-└── receivers/
-    ├── hospital_receiver.py       # Standalone FastAPI mock
-    └── insurer_receiver.py        # Standalone FastAPI mock
-```
-
-## Environment Variables
-
-Set in `.env` or docker-compose.yml:
-
-- `OPENROUTER_API_KEY` - Required for AI reports (free tier works)
-- `OPENROUTER_MODEL` - Currently `qwen/qwen3.8-27b:free`
-- `DATABASE_URL` - PostgreSQL connection string
-- `API_URL` - Dashboard uses this to find API (set to `http://api:8000` in Docker)
-
-## Database
-
-PostgreSQL 16 with schema + seed data in `data/seed.sql`. Tables: `patients`, `policies`, `pre_existences`, `admissions`, `alerts`, `audit_logs`.
-
-Alembic configured but not yet used (schema loaded via seed.sql on first `docker compose up`).
-
-To reset database: `docker compose down -v && docker compose up -d`
-
-## Testing
+## Run, test, verify
 
 ```bash
-# Smoke test - active policy + pre-existences (WARNING)
-$body = @{admission_id="TEST-001";patient_id="PAT-001";policy_number="POL-2024-001";timestamp="2026-09-19T23:00:00";admission_reason="Chest pain";symptoms=@("chest pain");hospital_code="HOSP-001"} | ConvertTo-Json
-Invoke-WebRequest -Uri "http://localhost:8000/api/v1/webhook/admission" -Method POST -Body $body -ContentType "application/json"
-
-# Verify health
-Invoke-WebRequest -Uri "http://localhost:8000/health" -UseBasicParsing
+cp .env.example .env
+docker compose up -d --build          # stack at http://localhost:8080
+docker compose up -d --build api      # rebuild one service
+docker compose logs -f api
+docker compose down -v && docker compose up -d   # reset DB (re-seeds)
 ```
 
-## Gotchas
+- Smoke test: `POST /api/v1/webhook/admission` with JSON (see README). Active policy +
+  pre-existing condition → `warning`; expired/suspended/unknown → `critical`.
+- WS check: connect to `ws://localhost:8080/api/v1/ws/alerts`; expect `{"event":"connected"}`
+  then `admission.processed` with `stats`.
+- **No-Docker local run (Windows, no Postgres):** models use generic SQLAlchemy types, so
+  `DATABASE_URL=sqlite:///./data/pulseguard_test.db` works with
+  `python -m uvicorn src.api.main:app --port 8000`. `create_all` makes *empty* tables — seed
+  patients/policies/pre_existences yourself from `data/patients.json` + `data/policies.json`
+  (JSON field `condition` maps to model `condition_name`). `psycopg2` is not needed for SQLite.
 
-- **Docker env vars**: `${VAR:-}` in docker-compose.yml only picks up host env vars. Set them before `docker compose up` or use `--force-recreate`.
-- **Volume mount**: `./src:/app/src` means code changes apply without rebuild, but env var changes need container restart.
-- **Dashboard URL**: Must use `http://api:8000` (Docker service name), NOT `http://localhost:8000` when running inside container.
-- **OpenRouter free tier**: 50 requests/day. Models with `:free` suffix cost nothing.
-- **Receivers**: Standalone FastAPI apps, no `src.` imports. Built from `Dockerfile.receiver`.
-- **Windows**: Always `python -m uvicorn` not bare `uvicorn`. Use PowerShell.
-- **Database resets**: `docker compose down -v` removes the volume. Seed data re-runs on next `up`.
+## Deploy
+
+- Public: https://pulseguard.sweetcode.studio (Cloudflare Tunnel → nginx).
+- On the server (repo at `/opt/pulseguard`): run `./deploy.sh` — pulls `origin/deploy/web`,
+  rebuilds, restarts nginx, fixes perms.
+- `.env` is gitignored and lives only on the server; never commit it.
