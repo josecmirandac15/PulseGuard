@@ -182,6 +182,6 @@ data/seed.sql     Esquema + datos de prueba
 
 ## Entregables hackIAthon
 
-- **Repositorio:** este repo (rama `deploy/web`).
+- **Repositorio:** este repo (rama `main`).
 - **Agente en ejecución:** https://pulseguard.sweetcode.studio
-- **Herramientas de IA usadas:** ver [`docs/HERRAMIENTAS-IA.md`](docs/HERRAMIENTAS-IA.md).
+- **Herramientas de IA usadas:** [`docs/HERRAMIENTAS-IA.pdf`](docs/HERRAMIENTAS-IA.pdf) (fuente: [`docs/HERRAMIENTAS-IA.md`](docs/HERRAMIENTAS-IA.md)).
